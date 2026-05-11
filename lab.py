@@ -149,19 +149,26 @@ def compute_metrics(eval_pred):
     return {"accuracy": acc, "macro_f1": f1}
 
 def train_classifier(
-    model,
     train_dataset,  
-    eval_dataset,   
-    tokenizer,
+    model_name,     
     training_args,  
+    tokenizer,      
+    num_labels=3    
 ):
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_name, 
+        num_labels=num_labels, 
+        id2label=ID2LABEL, 
+        label2id=LABEL2ID
+    )
+    
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
     
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=train_dataset,
-        eval_dataset=eval_dataset,
+        train_dataset=train_dataset["train"],
+        eval_dataset=train_dataset["test"],
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
