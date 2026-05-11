@@ -66,9 +66,11 @@ def prepare_dataset(data_path: str, test_size: float = 0.2, seed: int = 42) -> D
     # TODO: return the resulting DatasetDict
     
     df = pd.read_csv(data_path)
-        
+
+    df = df.rename(columns={"label": "labels"})
+
     ds = Dataset.from_pandas(df, preserve_index=False)
-    
+
     return ds.train_test_split(test_size=test_size, seed=seed)
 
 
@@ -98,7 +100,6 @@ def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> 
     tokenized = ds_dict.map(tokenize_fn, batched=True)
 
     tokenized = tokenized.remove_columns(["text"])
-    tokenized = tokenized.rename_column("label", "labels")
 
     return tokenized
     
