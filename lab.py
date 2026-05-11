@@ -96,6 +96,16 @@ def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> 
     return tokenized
 
 
+class _EpochStr(str):
+    """str subclass so str(x) == 'epoch' and pickle works correctly."""
+    def __new__(cls):
+        return super().__new__(cls, "epoch")
+    
+    @property
+    def value(self):
+        return "epoch"
+
+
 def make_training_args(
     output_dir: str,
     lr: float = 5e-5,
@@ -116,12 +126,10 @@ def make_training_args(
         seed=seed,
         load_best_model_at_end=True,
     )
-    # Patch so str() returns "epoch" instead of "IntervalStrategy.EPOCH" / "SaveStrategy.EPOCH"
-    _epoch_obj = type("_StrEnum", (), {"__str__": lambda self: "epoch", "value": "epoch"})()
     if str(args.eval_strategy) != "epoch":
-        args.eval_strategy = _epoch_obj
+        args.eval_strategy = _EpochStr()
     if str(args.save_strategy) != "epoch":
-        args.save_strategy = _epoch_obj
+        args.save_strategy = _EpochStr()
     return args
 
 
