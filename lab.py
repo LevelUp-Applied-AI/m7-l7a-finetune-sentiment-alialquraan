@@ -75,21 +75,22 @@ def prepare_dataset(data_path: str, test_size: float = 0.2, seed: int = 42) -> D
 
 def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> DatasetDict:
     def tokenize_fn(batch):
-        # تأكد من أن النصوص ليست فارغة
         return tokenizer(
             batch["text"],
             truncation=True,
-            padding=False, # الـ padding يتم في الـ Collator كما طلبت التعليمات
             max_length=max_length,
         )
 
-    # استخدم remove_columns لحذف الأعمدة النصية الأصلية لتجنب تداخل البيانات
+    # يجب إضافة remove_columns هنا لحذف الأعمدة غير الضرورية
+    # هذا يضمن بقاء الأعمدة التي أنشأها التوكنزر وعمود الـ label فقط
     tokenized = ds_dict.map(
         tokenize_fn, 
         batched=True, 
-        remove_columns=["text"] # احذف النص الأصلي ليبقى فقط الـ ids والـ label
+        remove_columns=ds_dict["train"].column_names 
     )
+
     return tokenized
+
 
 
 class _EpochStr(str):
