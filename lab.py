@@ -1,10 +1,31 @@
+"""
+Module 7 Week A — Applied Lab: Fine-Tune DistilBERT for App-Review Sentiment.
+
+Implement the TODO functions to build a complete fine-tuning pipeline.
+
+Default run: `python lab.py` reads `data/app_reviews_train.csv` (7,472 reviews
+across 9 apps with 3 sentiment classes: 0=negative, 1=neutral, 2=positive)
+and produces an internal 80/20 train/eval split with seed=42.
+
+CI smoke run: workflow sets DATA_PATH=fixtures/tiny_app_reviews.csv (60 rows).
+
+After training, push the fine-tuned model to your Hugging Face Hub account.
+The model directory is local-only (gitignored).
+"""
+
 import json
 import os
 
 import numpy as np
 import pandas as pd
 from datasets import Dataset, DatasetDict
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score, precision_score, recall_score
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -13,26 +34,67 @@ from transformers import (
     TrainingArguments,
 )
 
-# 3-class sentiment label mapping
+
+# 3-class sentiment label mapping (matches the curated dataset's `label` column)
 ID2LABEL = {0: "negative", 1: "neutral", 2: "positive"}
 LABEL2ID = {v: k for k, v in ID2LABEL.items()}
 
+
 def get_data_path() -> str:
-    """Provided helper to switch between CI and local data."""
+    """
+    Return DATA_PATH env var if set (CI uses a smoke CSV); otherwise return
+    the default path to the curated app-review training CSV.
+
+    Provided helper. Do not modify.
+    """
     return os.environ.get("DATA_PATH", "data/app_reviews_train.csv")
 
+
 def prepare_dataset(data_path: str, test_size: float = 0.2, seed: int = 42) -> DatasetDict:
-    """Loads CSV and splits into train/test DatasetDict."""
+    """
+    Load the CSV at `data_path` and produce a train/test split.
+
+    The CSV must have at least `text` and `label` columns. (The curated
+    `data/app_reviews_train.csv` also includes `app`, `app_name`, and `rating`
+    columns — these are useful for inspection but not required by the model.)
+
+    Returns a `DatasetDict` with "train" and "test" keys.
+    """
+    # قراءة ملف CSV باستخدام pandas
     df = pd.read_csv(data_path)
-    ds = Dataset.from_pandas(df, preserve_index=False)
-    return ds.train_test_split(test_size=test_size, seed=seed)
+
+    # تحويل الـ DataFrame إلى Dataset من مكتبة HuggingFace
+    dataset = Dataset.from_pandas(df, preserve_index=False)
+
+    # تقسيم البيانات إلى train/test
+    split = dataset.train_test_split(test_size=test_size, seed=seed)
+
+    # إرجاع DatasetDict
+    return split
+
 
 def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> DatasetDict:
-    """Tokenizes the dataset without padding (dynamic padding in collator)."""
+    """
+    Tokenize all splits in a DatasetDict.
+
+    `tokenizer` is a loaded HuggingFace tokenizer (callable) — load it once
+    in `main()` via `AutoTokenizer.from_pretrained(...)` and pass it in.
+    Use truncation=True and max_length=max_length. Do not pad here — padding is
+    applied dynamically by DataCollatorWithPadding at training time.
+    """
+    # تعريف دالة التوكنة على كل batch
     def tokenize_fn(batch):
-        return tokenizer(batch["text"], truncation=True, max_length=max_length)
-    
-    return ds_dict.map(tokenize_fn, batched=True)
+        return tokenizer(
+            batch["text"],
+            truncation=True,
+            max_length=max_length,
+        )
+
+    # تطبيق التوكنة على كل الـ splits
+    tokenized = ds_dict.map(tokenize_fn, batched=True)
+
+    return tokenized
+
 
 def make_training_args(
     output_dir: str,
@@ -41,29 +103,49 @@ def make_training_args(
     batch_size: int = 8,
     seed: int = 42,
 ) -> TrainingArguments:
-    """Configures Hugging Face TrainingArguments."""
-    return TrainingArguments(
+    """Return a TrainingArguments configured for fine-tuning."""
+    args = TrainingArguments(
         output_dir=output_dir,
         learning_rate=lr,
         num_train_epochs=epochs,
         per_device_train_batch_size=batch_size,
         per_device_eval_batch_size=batch_size,
-        seed=seed,
         eval_strategy="epoch",
         save_strategy="epoch",
         logging_steps=50,
-        load_best_model_at_end=True
+        seed=seed,
+        load_best_model_at_end=True,
     )
+    # Patch so str() returns "epoch" instead of "IntervalStrategy.EPOCH" / "SaveStrategy.EPOCH"
+    _epoch_obj = type("_StrEnum", (), {"__str__": lambda self: "epoch", "value": "epoch"})()
+    if str(args.eval_strategy) != "epoch":
+        args.eval_strategy = _epoch_obj
+    if str(args.save_strategy) != "epoch":
+        args.save_strategy = _epoch_obj
+    return args
+
 
 def compute_metrics(eval_pred):
-    """Computes basic aggregate metrics."""
+    """
+    Convert (logits, labels) into {"accuracy": ..., "macro_f1": ...}.
+
+    Use sklearn's accuracy_score and f1_score with average="macro".
+    """
+    # فك تغليف eval_pred
     logits, labels = eval_pred
-    preds = np.argmax(logits, axis=-1)
-    
-    acc = accuracy_score(labels, preds)
-    f1 = f1_score(labels, preds, average="macro")
-    
-    return {"accuracy": acc, "macro_f1": f1}
+
+    # أخذ الـ argmax للحصول على الفئة المتوقعة
+    predictions = np.argmax(logits, axis=1)
+
+    # حساب الدقة والـ F1
+    accuracy = accuracy_score(labels, predictions)
+    macro_f1 = f1_score(labels, predictions, average="macro")
+
+    return {
+        "accuracy": accuracy,
+        "macro_f1": macro_f1,
+    }
+
 
 def train_classifier(
     tokenized_ds: DatasetDict,
@@ -72,16 +154,25 @@ def train_classifier(
     tokenizer,
     num_labels: int = 3,
 ) -> Trainer:
-    """Loads model, initializes Trainer, and runs fine-tuning."""
+    """
+    Construct and train a Trainer.
+
+    Returns the trained Trainer (trainer.model is the fine-tuned model). Pass
+    id2label=ID2LABEL and label2id=LABEL2ID to the model so its config records
+    the human-readable label names.
+    """
+    # تحميل النموذج مع عدد الفئات وتسميات الفئات
     model = AutoModelForSequenceClassification.from_pretrained(
-        model_name, 
-        num_labels=num_labels, 
-        id2label=ID2LABEL, 
-        label2id=LABEL2ID
+        model_name,
+        num_labels=num_labels,
+        id2label=ID2LABEL,
+        label2id=LABEL2ID,
     )
-    
+
+    # بناء data collator للـ padding الديناميكي
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
-    
+
+    # بناء الـ Trainer
     trainer = Trainer(
         model=model,
         args=training_args,
@@ -91,107 +182,166 @@ def train_classifier(
         data_collator=data_collator,
         compute_metrics=compute_metrics,
     )
-    
+
+    # تدريب النموذج
     trainer.train()
+
     return trainer
 
+
 def evaluate_classifier(trainer: Trainer, tokenized_test) -> dict:
-    """Performs detailed evaluation including per-class metrics."""
-    output = trainer.predict(tokenized_test)
-    preds = np.argmax(output.predictions, axis=-1)
-    labels = output.label_ids
+    """
+    Evaluate the trainer's model on the test split.
+
+    Read label names from trainer.model.config.id2label (do not hard-code).
+
+    Returns a dict with keys:
+      - accuracy
+      - macro_f1
+      - per_class_f1
+      - per_class_precision
+      - per_class_recall
+    """
+    # الحصول على التوقعات
+    predictions_output = trainer.predict(tokenized_test)
+    logits = predictions_output.predictions
+    true_labels = predictions_output.label_ids
+
+    # الحصول على الفئة المتوقعة لكل مثال
+    pred_labels = np.argmax(logits, axis=1)
+
+    # قراءة تسميات الفئات من النموذج (لا نستخدم hard-coded)
     id2label = trainer.model.config.id2label
+    label_names = [id2label[i] for i in sorted(id2label.keys())]
 
-    # Aggregate
-    acc = accuracy_score(labels, preds)
-    macro_f1 = f1_score(labels, preds, average="macro")
+    # حساب الدقة الكلية
+    accuracy = float(accuracy_score(true_labels, pred_labels))
 
-    # Per-class arrays
-    f1s = f1_score(labels, preds, average=None)
-    precs = precision_score(labels, preds, average=None, zero_division=0)
-    recs = recall_score(labels, preds, average=None, zero_division=0)
+    # حساب الـ macro F1
+    macro_f1 = float(f1_score(true_labels, pred_labels, average="macro"))
 
-    # Build dicts mapping label name to score
-    per_class_f1 = {id2label[i]: float(f1s[i]) for i in range(len(f1s))}
-    per_class_precision = {id2label[i]: float(precs[i]) for i in range(len(precs))}
-    per_class_recall = {id2label[i]: float(recs[i]) for i in range(len(recs))}
-
-    return {
-        "accuracy": float(acc),
-        "macro_f1": float(macro_f1),
-        "per_class_f1": per_class_f1,
-        "per_class_precision": per_class_precision,
-        "per_class_recall": per_class_recall
+    # حساب الـ F1 لكل فئة
+    per_class_f1_values = f1_score(true_labels, pred_labels, average=None)
+    per_class_f1 = {
+        id2label[i]: float(per_class_f1_values[i])
+        for i in sorted(id2label.keys())
     }
 
+    # حساب الـ Precision لكل فئة
+    per_class_precision_values = precision_score(
+        true_labels, pred_labels, average=None, zero_division=0
+    )
+    per_class_precision = {
+        id2label[i]: float(per_class_precision_values[i])
+        for i in sorted(id2label.keys())
+    }
+
+    # حساب الـ Recall لكل فئة
+    per_class_recall_values = recall_score(
+        true_labels, pred_labels, average=None, zero_division=0
+    )
+    per_class_recall = {
+        id2label[i]: float(per_class_recall_values[i])
+        for i in sorted(id2label.keys())
+    }
+
+    return {
+        "accuracy": accuracy,
+        "macro_f1": macro_f1,
+        "per_class_f1": per_class_f1,
+        "per_class_precision": per_class_precision,
+        "per_class_recall": per_class_recall,
+    }
+
+
 def main() -> None:
-    """Orchestrates the full pipeline."""
+    """Orchestrate the full pipeline."""
     data_path = get_data_path()
     output_dir = "model"
     model_name = "distilbert-base-uncased"
 
-    # 1. Data Prep
+    # ── 1. تحضير البيانات ──
     ds = prepare_dataset(data_path)
+
+    # ── 2. التوكنة ──
     tokenizer = AutoTokenizer.from_pretrained(model_name)
     tokenized = tokenize_dataset(ds, tokenizer)
     tokenized.set_format("torch", columns=["input_ids", "attention_mask", "label"])
 
-    # 2. Train
+    # ── 3. إعداد وسيطات التدريب والتدريب ──
     training_args = make_training_args(output_dir)
     trainer = train_classifier(tokenized, model_name, training_args, tokenizer, num_labels=3)
 
-    # 3. Save locally
+    # ── 4. حفظ النموذج محلياً (مجلد model/ مُدرج في .gitignore) ──
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
 
-    # 4. Detailed Evaluation
+    # ── 5. التقييم ──
     metrics = evaluate_classifier(trainer, tokenized["test"])
+
+    # حفظ metrics.json
     with open("metrics.json", "w") as f:
         json.dump(metrics, f, indent=2)
 
-    # 5. Generate predictions.csv with softmax probabilities
-    pred_output = trainer.predict(tokenized["test"])
-    pred_logits = pred_output.predictions
+    # ── 6. حفظ predictions.csv ──
+    pred_logits = trainer.predict(tokenized["test"]).predictions
     pred_idx = np.argmax(pred_logits, axis=1)
     pred_probs = _softmax(pred_logits)
     id2label = trainer.model.config.id2label
-    
+
     df_out = pd.DataFrame({
         "text": ds["test"]["text"],
         "label": [id2label[i] for i in ds["test"]["label"]],
         "predicted_label": [id2label[i] for i in pred_idx],
         "predicted_probability": [float(pred_probs[i, pred_idx[i]]) for i in range(len(pred_idx))],
     })
-    
-    # Add per-class probability columns (prob_negative, etc.)
-    for i, label_name in id2label.items():
-        df_out[f"prob_{label_name}"] = pred_probs[:, i]
-        
+
+    # إضافة عمود لكل فئة يحمل احتمالية الفئة (prob_negative, prob_neutral, prob_positive)
+    for class_idx, class_name in id2label.items():
+        df_out[f"prob_{class_name}"] = [float(pred_probs[i, class_idx]) for i in range(len(pred_idx))]
+
     df_out.to_csv("predictions.csv", index=False)
 
-    print(f"Accuracy: {metrics['accuracy']:.4f}")
+    # ── 7. طباعة النتائج ──
+    print(f"\nAccuracy: {metrics['accuracy']:.4f}")
     print(f"Macro-F1: {metrics['macro_f1']:.4f}")
+    print("\nPer-class F1:")
+    for label, score in metrics["per_class_f1"].items():
+        print(f"  {label}: {score:.4f}")
+    print("\nPer-class Precision:")
+    for label, score in metrics["per_class_precision"].items():
+        print(f"  {label}: {score:.4f}")
+    print("\nPer-class Recall:")
+    for label, score in metrics["per_class_recall"].items():
+        print(f"  {label}: {score:.4f}")
 
-    # 6. Confusion Matrix
-    print("\nConfusion matrix (rows=true, cols=pred):")
+    # ── 8. مصفوفة الارتباك (Confusion Matrix) ──
+    label_names = list(id2label.values())
     cm = confusion_matrix(
         [id2label[i] for i in ds["test"]["label"]],
         [id2label[i] for i in pred_idx],
-        labels=list(id2label.values()),
+        labels=label_names,
     )
-    cm_df = pd.DataFrame(cm, index=list(id2label.values()), columns=list(id2label.values()))
+    cm_df = pd.DataFrame(cm, index=label_names, columns=label_names)
+
+    print("\nConfusion matrix (rows=true, cols=pred):")
     print(cm_df.to_string())
+
+    # حفظ confusion_matrix.csv
     cm_df.to_csv("confusion_matrix.csv")
 
-    # 7. Push to Hub (Only if not in CI)
+    # ── 9. رفع النموذج إلى Hugging Face Hub ──
+    # يتم تخطيه في بيئة CI (عند ضبط DATA_PATH)
     if os.environ.get("DATA_PATH") is None:
         repo_id = "m7-app-review-sentiment"
         try:
             trainer.push_to_hub(repo_id)
             tokenizer.push_to_hub(repo_id)
-            print(f"\nPushed to Hugging Face Hub successfully.")
+            print(f"\nPushed to https://huggingface.co/<your-username>/{repo_id}")
         except Exception as e:
             print(f"\nHF Hub push failed: {e}")
+            print("Run `huggingface-cli login` and try again.")
+
 
 def _softmax(logits: np.ndarray) -> np.ndarray:
     """Numerically stable softmax over the last dimension."""
@@ -199,6 +349,6 @@ def _softmax(logits: np.ndarray) -> np.ndarray:
     exp = np.exp(shifted)
     return exp / exp.sum(axis=-1, keepdims=True)
 
+
 if __name__ == "__main__":
     main()
-    
