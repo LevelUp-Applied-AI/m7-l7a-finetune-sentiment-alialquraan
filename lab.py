@@ -149,41 +149,19 @@ def compute_metrics(eval_pred):
     return {"accuracy": acc, "macro_f1": f1}
 
 def train_classifier(
-    tokenized_ds: DatasetDict,
-    model_name: str,
-    training_args: TrainingArguments,
+    model,
+    train_dataset,  
+    eval_dataset,   
     tokenizer,
-    num_labels: int = 3,
-) -> Trainer:
-    """
-    Construct and train a Trainer.
-
-    Returns the trained Trainer (trainer.model is the fine-tuned model). Pass
-    id2label=ID2LABEL and label2id=LABEL2ID to the model so its config records
-    the human-readable label names — Integration 7A reads them from
-    `model.config.id2label` rather than hard-coding.
-    """
-    # TODO: load model with AutoModelForSequenceClassification.from_pretrained(
-    #         model_name, num_labels=num_labels, id2label=ID2LABEL, label2id=LABEL2ID)
-    # TODO: build data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
-    # TODO: build Trainer with model, args, train/eval datasets, tokenizer, data_collator, compute_metrics
-    # TODO: call trainer.train()
-    # TODO: return trainer
-    
-    model = AutoModelForSequenceClassification.from_pretrained(
-        model_name, 
-        num_labels=num_labels, 
-        id2label=ID2LABEL, 
-        label2id=LABEL2ID
-    )
-    
+    training_args,  
+):
     data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
     
     trainer = Trainer(
         model=model,
         args=training_args,
-        train_dataset=tokenized_ds["train"],
-        eval_dataset=tokenized_ds["test"],
+        train_dataset=train_dataset,
+        eval_dataset=eval_dataset,
         tokenizer=tokenizer,
         data_collator=data_collator,
         compute_metrics=compute_metrics,
