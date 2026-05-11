@@ -75,21 +75,12 @@ def prepare_dataset(data_path: str, test_size: float = 0.2, seed: int = 42) -> D
 
 def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> DatasetDict:
     def tokenize_fn(batch):
-        return tokenizer(
-            batch["text"],
-            truncation=True,
-            max_length=max_length,
-        )
+        return tokenizer(batch["text"], truncation=True, max_length=max_length)
 
-    # يجب إضافة remove_columns هنا لحذف الأعمدة غير الضرورية
-    # هذا يضمن بقاء الأعمدة التي أنشأها التوكنزر وعمود الـ label فقط
-    tokenized = ds_dict.map(
-        tokenize_fn, 
-        batched=True, 
-        remove_columns=ds_dict["train"].column_names 
-    )
-
-    return tokenized
+    # نحذف كل شيء "ما عدا" الـ label
+    cols_to_remove = [c for c in ds_dict["train"].column_names if c != "label"]
+    
+    return ds_dict.map(tokenize_fn, batched=True, remove_columns=cols_to_remove)
 
 
 
