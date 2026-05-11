@@ -19,7 +19,13 @@ import os
 import numpy as np
 import pandas as pd
 from datasets import Dataset, DatasetDict
-from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
+from sklearn.metrics import (
+    accuracy_score,
+    confusion_matrix,
+    f1_score,
+    precision_score,
+    recall_score,
+)
 from transformers import (
     AutoModelForSequenceClassification,
     AutoTokenizer,
@@ -58,7 +64,12 @@ def prepare_dataset(data_path: str, test_size: float = 0.2, seed: int = 42) -> D
     # TODO: convert with Dataset.from_pandas(df, preserve_index=False)
     # TODO: split with .train_test_split(test_size=test_size, seed=seed)
     # TODO: return the resulting DatasetDict
-    raise NotImplementedError
+    
+    df = pd.read_csv(data_path)
+        
+    ds = Dataset.from_pandas(df, preserve_index=False)
+    
+    return ds.train_test_split(test_size=test_size, seed=seed)
 
 
 def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> DatasetDict:
@@ -76,7 +87,12 @@ def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> 
     # TODO: define tokenize_fn(batch) calling the passed-in tokenizer with truncation + max_length
     # TODO: apply ds_dict.map(tokenize_fn, batched=True)
     # TODO: return the tokenized DatasetDict
-    raise NotImplementedError
+    
+    def tokenize_fn(batch):
+        return tokenizer(batch["text"], truncation=True, max_length=max_length)
+    
+    return ds_dict.map(tokenize_fn, batched=True)
+    
 
 
 def make_training_args(
@@ -93,9 +109,27 @@ def make_training_args(
     #   - save_strategy="epoch"
     #   - logging_steps=50
     # The course pins transformers>=4.41,<5.0 — use the new argument names.
-    raise NotImplementedError
+    
+    args = TrainingArguments(
+        output_dir=output_dir,
+        learning_rate=lr,
+        num_train_epochs=epochs,
+        per_device_train_batch_size=batch_size,
+        per_device_eval_batch_size=batch_size,
+        seed=seed,
+        eval_strategy="epoch",
+        save_strategy="epoch",
+        logging_steps=50,
+        push_to_hub=False,
+        report_to="none"
+    )
 
+    args.eval_strategy = "epoch"
+    args.save_strategy = "epoch"
 
+    return args
+    
+    
 def compute_metrics(eval_pred):
     """
     Convert (logits, labels) into {"accuracy": ..., "macro_f1": ...}.
@@ -106,8 +140,13 @@ def compute_metrics(eval_pred):
     # TODO: argmax logits over axis 1
     # TODO: compute accuracy and macro-F1
     # TODO: return as a dict
-    raise NotImplementedError
-
+    logits, labels = eval_pred
+    predictions = np.argmax(logits, axis=-1)
+    
+    acc = accuracy_score(labels, predictions)
+    f1 = f1_score(labels, predictions, average="macro")
+    
+    return {"accuracy": acc, "macro_f1": f1}
 
 def train_classifier(
     tokenized_ds: DatasetDict,
@@ -130,8 +169,28 @@ def train_classifier(
     # TODO: build Trainer with model, args, train/eval datasets, tokenizer, data_collator, compute_metrics
     # TODO: call trainer.train()
     # TODO: return trainer
-    raise NotImplementedError
-
+    
+    model = AutoModelForSequenceClassification.from_pretrained(
+        model_name, 
+        num_labels=num_labels, 
+        id2label=ID2LABEL, 
+        label2id=LABEL2ID
+    )
+    
+    data_collator = DataCollatorWithPadding(tokenizer=tokenizer)
+    
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=tokenized_ds["train"],
+        eval_dataset=tokenized_ds["test"],
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+        compute_metrics=compute_metrics,
+    )
+    
+    trainer.train()
+    return trainer
 
 def evaluate_classifier(trainer: Trainer, tokenized_test) -> dict:
     """
@@ -147,7 +206,28 @@ def evaluate_classifier(trainer: Trainer, tokenized_test) -> dict:
     # TODO: compute per-class F1 with f1_score(..., average=None)
     # TODO: build per_class_f1 dict using trainer.model.config.id2label for label names
     # TODO: return all three
-    raise NotImplementedError
+    
+    
+    output = trainer.predict(tokenized_test)
+    logits = output.predictions
+    labels = output.label_ids
+    preds = np.argmax(logits, axis=-1)
+    
+    acc = accuracy_score(labels, preds)
+    macro_f1 = f1_score(labels, preds, average="macro")
+    
+    id2label = trainer.model.config.id2label
+    per_f1 = f1_score(labels, preds, average=None)
+    per_prec = precision_score(labels, preds, average=None, zero_division=0)
+    per_rec = recall_score(labels, preds, average=None, zero_division=0)
+    
+    return {
+        "accuracy": float(acc),
+        "macro_f1": float(macro_f1),
+        "per_class_f1": {id2label[i]: float(f) for i, f in enumerate(per_f1)},
+        "per_class_precision": {id2label[i]: float(p) for i, p in enumerate(per_prec)},
+        "per_class_recall": {id2label[i]: float(r) for i, r in enumerate(per_rec)},
+    }
 
 
 def main() -> None:
