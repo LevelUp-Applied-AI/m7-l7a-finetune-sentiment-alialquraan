@@ -74,25 +74,21 @@ def prepare_dataset(data_path: str, test_size: float = 0.2, seed: int = 42) -> D
 
 
 def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> DatasetDict:
-    """
-    Tokenize all splits in a DatasetDict.
-
-    `tokenizer` is a loaded HuggingFace tokenizer (callable) — load it once
-    in `main()` via `AutoTokenizer.from_pretrained(...)` and pass it in.
-    Use truncation=True and max_length=max_length. Do not pad here — padding is
-    applied dynamically by DataCollatorWithPadding at training time.
-    """
-    # تعريف دالة التوكنة على كل batch
     def tokenize_fn(batch):
+        # تأكد من أن النصوص ليست فارغة
         return tokenizer(
             batch["text"],
             truncation=True,
+            padding=False, # الـ padding يتم في الـ Collator كما طلبت التعليمات
             max_length=max_length,
         )
 
-    # تطبيق التوكنة على كل الـ splits
-    tokenized = ds_dict.map(tokenize_fn, batched=True)
-
+    # استخدم remove_columns لحذف الأعمدة النصية الأصلية لتجنب تداخل البيانات
+    tokenized = ds_dict.map(
+        tokenize_fn, 
+        batched=True, 
+        remove_columns=["text"] # احذف النص الأصلي ليبقى فقط الـ ids والـ label
+    )
     return tokenized
 
 
