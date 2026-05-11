@@ -251,12 +251,61 @@ def main() -> None:
             batch_size=2,   
             seed=42
         )
+        from transformers import set_seed
         set_seed(42) 
     else:
         training_args = make_training_args(output_dir)
     
     trainer = train_classifier(tokenized, model_name, training_args, tokenizer, num_labels=3)
 
+    trainer.model.save_pretrained(output_dir)
+    tokenizer.save_pretrained(output_dir)
+
+    metrics = evaluate_classifier(trainer, tokenized["test"])
+
+    with open("metrics.json", "w") as f:
+        json.dump(metrics, f, indent=2)
+
+    pred_logits = trainer.predict(tokenized["test"]).predictions
+    pred_idx = np.argmax(pred_logits, axis=1)
+    pred_probs = _softmax(pred_logits)
+    id2label = trainer.model.config.id2label
+
+    df_out = pd.DataFrame({
+        "text": ds["test"]["text"],
+        "label": [id2label[i] for i in ds["test"]["label"]],
+        "predicted_label": [id2label[i] for i in pred_idx],
+        "predicted_probability": [float(pred_probs[i, pred_idx[i]]) for i in range(len(pred_idx))],
+    })
+
+    for class_idx, class_name in id2label.items():
+        df_out[f"prob_{class_name}"] = [float(pred_probs[i, class_idx]) for i in range(len(pred_idx))]
+
+    df_out.to_csv("predictions.csv", index=False)
+
+    print(f"\nAccuracy: {metrics['accuracy']:.4f}")
+    print(f"Macro-F1: {metrics['macro_f1']:.4f}")
+
+    label_names = list(id2label.values())
+    cm = confusion_matrix(
+        [id2label[i] for i in ds["test"]["label"]],
+        [id2label[i] for i in pred_idx],
+        labels=label_names,
+    )
+    cm_df = pd.DataFrame(cm, index=label_names, columns=label_names)
+    cm_df.to_csv("confusion_matrix.csv")
+
+    if os.environ.get("DATA_PATH") is None:
+        repo_id = "m7-app-review-sentiment"
+        try:
+            trainer.push_to_hub(repo_id)
+            tokenizer.push_to_hub(repo_id)
+            print(f"\nPushed to Hugging Face: {repo_id}")
+        except Exception as e:
+            print(f"\nHF Hub push failed: {e}")
+            
+            
+            
 def _softmax(logits: np.ndarray) -> np.ndarray:
     """Numerically stable softmax over the last dimension."""
     shifted = logits - logits.max(axis=-1, keepdims=True)
