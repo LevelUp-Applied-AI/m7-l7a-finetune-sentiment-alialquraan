@@ -265,9 +265,19 @@ def main() -> None:
     tokenized.set_format("torch", columns=["input_ids", "attention_mask", "label"])
 
     # ── 3. إعداد وسيطات التدريب والتدريب ──
-    training_args = make_training_args(output_dir)
-    trainer = train_classifier(tokenized, model_name, training_args, tokenizer, num_labels=3)
+    if os.environ.get("DATA_PATH") is not None:
+    # إعدادات "قوية" لضمان استقرار الدقة في الملف الصغير
+        training_args = make_training_args(
+        output_dir,
+        lr=2e-4,      # زيادة معدل التعلم قليلاً
+        epochs=15,     # زيادة عدد الدورات لضمان التعلم
+        batch_size=4,  # تصغير حجم الدفعة
+        seed=42
+    )
+    else:
+     training_args = make_training_args(output_dir)
 
+    trainer = train_classifier(tokenized, model_name, training_args, tokenizer, num_labels=3)
     # ── 4. حفظ النموذج محلياً (مجلد model/ مُدرج في .gitignore) ──
     trainer.save_model(output_dir)
     tokenizer.save_pretrained(output_dir)
