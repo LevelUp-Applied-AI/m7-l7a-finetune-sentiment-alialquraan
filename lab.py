@@ -89,9 +89,18 @@ def tokenize_dataset(ds_dict: DatasetDict, tokenizer, max_length: int = 128) -> 
     # TODO: return the tokenized DatasetDict
     
     def tokenize_fn(batch):
-        return tokenizer(batch["text"], truncation=True, max_length=max_length)
-    
-    return ds_dict.map(tokenize_fn, batched=True)
+        return tokenizer(
+            batch["text"],
+            truncation=True,
+            max_length=max_length
+        )
+
+    tokenized = ds_dict.map(tokenize_fn, batched=True)
+
+    tokenized = tokenized.remove_columns(["text"])
+    tokenized = tokenized.rename_column("label", "labels")
+
+    return tokenized
     
 
 
@@ -223,8 +232,8 @@ def main() -> None:
 
     ds = prepare_dataset(data_path)
     tokenizer = AutoTokenizer.from_pretrained(model_name)
-    tokenized = tokenize_dataset(ds, tokenizer)
-    tokenized.set_format("torch", columns=["input_ids", "attention_mask", "label"])
+    tokenized = tokenize_dataset(ds, tokenizer)    
+    tokenized.set_format("torch", columns=["input_ids", "attention_mask", "labels"])
 
     training_args = make_training_args(output_dir)
     trainer = train_classifier(tokenized, model_name, training_args, tokenizer, num_labels=3)
