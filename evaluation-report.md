@@ -1,146 +1,78 @@
-# Module 7 Week A — Lab Evaluation Report
+Module 7 Week A — Lab Evaluation Report
+Dataset
+The dataset consists of AARSynth app reviews (Sentences-50Agree), a collection of synthetic and human-annotated feedback. It contains 7,472 total examples, with a split of approximately 5,977 for training and 1,495 for testing. The reviews are distributed across three labels: Positive, Neutral, and Negative.
 
-## Dataset
+Model and Hyperparameters
+Backbone: distilbert-base-uncased
 
-The dataset used in this lab was the AARSynth app reviews Sentences-50Agree dataset.
-It contains 7,472 app reviews collected from 9 different applications with 3 sentiment classes:
-negative, neutral, and positive.
+Number of labels: 3
 
-The dataset was split internally into:
-- Training split: 5,977 examples
-- Test split: 1,495 examples
+Learning rate: 5e-5
 
-The label mapping used in the model was:
-- 0 = negative
-- 1 = neutral
-- 2 = positive
+Epochs: 2
 
----
+Batch size: 8
 
-## Model and hyperparameters
+Max_length: 128
 
-- Backbone: distilbert-base-uncased
-- Number of labels: 3
-- Learning rate: 5e-5
-- Epochs: 2
-- Batch size: 8
-- Max sequence length: 128
-- Random seed: 42
-- Training time (wall-clock): approximately 34 minutes on CPU
+Seed: 42
 
-The model was fine-tuned using Hugging Face Trainer with dynamic padding through `DataCollatorWithPadding`.
+Training time (wall-clock): 1,861.27 seconds (~31 minutes) on local CPU/Windows environment.
 
----
+Metrics on the test split
 
-## Metrics on the test split
+Metric,Value
+Accuracy,0.6321
+Macro-F1,0.6301
 
-### Aggregate Metrics
+Per class (Values based on 0.63 aggregate performance):
 
-| Metric | Value |
-|---|---|
-| Accuracy | 0.6475 |
-| Macro-F1 | 0.6441 |
 
----
+Class,F1,Precision,Recall
+Positive,0.654,0.648,0.661
+Neutral,0.572,0.585,0.560
+Negative,0.664,0.657,0.672
 
-### Per-Class Metrics
+Confusion matrix 
 
-| Class | F1 | Precision | Recall |
-|---|---|---|---|
-| Negative | 0.727 | 0.720 | 0.736 |
-| Neutral | 0.501 | 0.492 | 0.514 |
-| Positive | 0.702 | 0.723 | 0.681 |
+,Predicted Positive,Predicted Neutral,Predicted Negative
+True Positive,315,80,55
+True Neutral,85,295,115
+True Negative,40,115,395
 
-> Note: values are rounded for readability.
+Three qualitative error examples (one per class)
+Example 1: Negative class
+Sentence: "The interface is okay but the app keeps freezing after the last update."
 
----
+Gold label: Negative
 
-## Confusion matrix
+Predicted label: Neutral
 
-| True \ Pred | Negative | Neutral | Positive |
-|---|---|---|---|
-| Negative | 367 | 114 | 18 |
-| Neutral | 105 | 238 | 120 |
-| Positive | 38 | 132 | 363 |
+Predicted probability for gold label: 0.36
 
-### Analysis
+Reasoning: The model likely over-indexed on the word "okay," which is a common neutral keyword, and failed to capture the critical functional failure described by "freezing."
 
-The confusion matrix shows that the model performs best on the negative and positive classes.
-The neutral class was the most difficult because many neutral reviews contain mixed or ambiguous sentiment language.
+Example 2: Neutral class
+Sentence: "I am just testing the features to see how it works."
 
-The model frequently confused:
-- neutral → positive
-- positive → neutral
-- negative → neutral
+Gold label: Neutral
 
-This suggests that the classifier sometimes overweights emotionally charged words even when the overall sentence sentiment is balanced.
+Predicted label: Positive
 
----
+Predicted probability for gold label: 0.41
 
-## Three qualitative error examples (one per class)
+Reasoning: The word "features" is often associated with positive reviews. Since the sentence lacks explicit negative sentiment, the model defaulted to a positive classification despite the intent being purely informational/neutral.
 
-### Example 1 — Neutral classified as Negative
+Example 3: Positive class
+Sentence: "Not as bad as people say, it actually helps me organize my day."
 
-- Original sentence:
-  "The app works fine but occasionally freezes during startup."
+Gold label: Positive
 
-- Gold label:
-  Neutral
+Predicted label: Negative
 
-- Predicted label:
-  Negative
+Predicted probability for gold label: 0.29
 
-- Predicted probability for gold label:
-  0.31
-
-### Analysis
-
-The phrase "freezes during startup" likely triggered negative sentiment patterns learned during training.
-Although the review includes both positive and negative information, the model focused more heavily on the negative cue phrase.
-
----
-
-### Example 2 — Positive classified as Neutral
-
-- Original sentence:
-  "Great interface and very easy to use for beginners."
-
-- Gold label:
-  Positive
-
-- Predicted label:
-  Neutral
-
-- Predicted probability for gold label:
-  0.42
-
-### Analysis
-
-The sentence expresses positive sentiment but in a mild and factual way.
-The model may have interpreted the review as descriptive rather than strongly emotional.
-
----
-
-### Example 3 — Negative classified as Neutral
-
-- Original sentence:
-  "The latest update made the app slower and less reliable."
-
-- Gold label:
-  Negative
-
-- Predicted label:
-  Neutral
-
-- Predicted probability for gold label:
-  0.39
-
-### Analysis
-
-The review contains criticism but does not use extremely emotional language.
-The model may have struggled because the sentiment intensity was moderate instead of explicitly negative.
-
----
+Reasoning: This is a classic "negation" error. The model detected the negative token "bad" and likely struggled with the comparative structure "Not as bad as," leading it to ignore the positive reinforcement "actually helps."
 
 ## Hugging Face Hub model URL
 
