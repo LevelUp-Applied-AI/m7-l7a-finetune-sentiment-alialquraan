@@ -1,0 +1,31 @@
+id,hypothesis_category,text,expected_label,rationale,predicted_label,predicted_probability,correct
+1,negation,The latest update did not improve battery life at all.,negative,Tests whether the model picks up the negation cue or just the trigger word 'improve',negative,0.7195824980735779,True
+2,lexical_trigger,This app is no longer reliable on my phone.,negative,Strong positive cue 'reliable' negated by 'no longer'; tests cue-vs-context handling,negative,0.9619452357292175,True
+3,domain_shift,The team won the championship final last weekend.,neutral,Sports content unrelated to app-review training; tests domain-shift robustness,neutral,0.4607568383216858,True
+4,negation,The app did not become faster after the patch.,negative,Tests whether the model ignores negation around the positive cue word 'faster',negative,0.8014000654220581,True
+5,negation,I can't recommend this update anymore.,negative,Checks whether the model understands negation tied to recommendation language,negative,0.5945519804954529,True
+6,negation,The interface is not user friendly.,negative,Tests whether the model focuses on 'friendly' despite negation,neutral,0.695687472820282,False
+7,lexical_trigger,The service is no longer excellent.,negative,Tests whether strong positive cue words dominate despite negative context,neutral,0.48645809292793274,False
+8,lexical_trigger,Perfect design but terrible performance.,negative,Checks mixed sentiment cues in one sentence,negative,0.5420451164245605,True
+9,lexical_trigger,Excellent features ruined by constant crashes.,negative,Tests whether positive cue words override negative meaning,positive,0.7859918475151062,False
+10,domain_shift,The striker failed to score despite dominating the match.,negative,Tests sentiment understanding in sports language,neutral,0.46561792492866516,False
+11,domain_shift,The recipe tasted amazing after adding extra garlic.,positive,Tests generalization outside app-review text,positive,0.7795014381408691,True
+12,domain_shift,The senator received criticism after the debate.,negative,Tests sentiment detection in political/news writing,negative,0.6799741387367249,True
+13,length_extreme,Works perfectly.,positive,Tests extremely short positive text,positive,0.7796810865402222,True
+14,length_extreme,Absolutely awful.,negative,Tests extremely short negative text,negative,0.9656493067741394,True
+15,length_extreme,"After using the application for several weeks across different devices and testing nearly every feature available, I noticed repeated crashes, delayed notifications, battery drain, login failures, and inconsistent performance that made the experience extremely frustrating overall.",negative,Tests whether very long sentences reduce prediction reliability,negative,0.7553201913833618,True
+16,sarcasm,"Amazing, the app crashed again.",negative,Tests whether sarcastic praise is mistaken for positive sentiment,negative,0.4168437123298645,True
+17,sarcasm,Fantastic update — now nothing works.,negative,Checks whether sarcasm fools the classifier,neutral,0.5332926511764526,False
+18,sarcasm,Great job deleting all my settings.,negative,Tests surface positivity versus intended negativity,positive,0.9138727784156799,False
+19,other,Th1s app is amazzzing!!!,positive,Tests robustness to spelling distortions,negative,0.5554754137992859,False
+20,other,Worst. Update. Ever.,negative,Tests punctuation-heavy sentiment,negative,0.9720845222473145,True
+21,other,meh,neutral,Tests handling of low-information ambiguous sentiment,negative,0.6059702038764954,False
+22,negation,This version does not feel stable anymore.,negative,Tests whether the model catches negation with positive stability language,negative,0.5485638976097107,True
+23,lexical_trigger,Reliable until the latest update ruined everything.,negative,Tests conflicting reliability cues,positive,0.6631205081939697,False
+24,domain_shift,The movie received outstanding reviews from critics.,positive,Tests domain transfer to entertainment language,positive,0.7321128249168396,True
+25,length_extreme,Bad app.,negative,Tests extremely short sentiment expression,negative,0.9692390561103821,True
+26,sarcasm,"Lovely, another bug appeared today.",negative,Tests sarcastic positivity with negative intent,positive,0.7744276523590088,False
+27,other,goooood apppp,positive,Tests repeated-character spelling variation,negative,0.5148826241493225,False
+28,domain_shift,Heavy rain destroyed the crops this season.,negative,Tests sentiment understanding in environmental/news text,negative,0.6438997387886047,True
+29,length_extreme,This app.,neutral,Tests extremely short neutral phrase,negative,0.7002519965171814,False
+30,sarcasm,Wonderful performance — it froze during my presentation.,negative,Tests sarcastic praise in a failure scenario,positive,0.8693802356719971,False
