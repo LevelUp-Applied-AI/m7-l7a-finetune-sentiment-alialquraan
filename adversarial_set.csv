@@ -1,0 +1,40 @@
+id,hypothesis_category,text,expected_label,rationale
+1,negation,The latest update did not improve battery life at all.,negative,Tests whether the model picks up the negation cue or just the trigger word 'improve'
+2,lexical_trigger,This app is no longer reliable on my phone.,negative,Strong positive cue 'reliable' negated by 'no longer'; tests cue-vs-context handling
+3,domain_shift,The team won the championship final last weekend.,neutral,Sports content unrelated to app-review training; tests domain-shift robustness
+
+4,negation,"The app did not become faster after the patch.",negative,"Tests whether the model ignores negation around the positive cue word 'faster'"
+5,negation,"I can't recommend this update anymore.",negative,"Checks whether the model understands negation tied to recommendation language"
+6,negation,"The interface is not user friendly.",negative,"Tests whether the model focuses on 'friendly' despite negation"
+
+7,lexical_trigger,"The service is no longer excellent.",negative,"Tests whether strong positive cue words dominate despite negative context"
+8,lexical_trigger,"Perfect design but terrible performance.",negative,"Checks mixed sentiment cues in one sentence"
+9,lexical_trigger,"Excellent features ruined by constant crashes.",negative,"Tests whether positive cue words override negative meaning"
+
+10,domain_shift,"The striker failed to score despite dominating the match.",negative,"Tests sentiment understanding in sports language"
+11,domain_shift,"The recipe tasted amazing after adding extra garlic.",positive,"Tests generalization outside app-review text"
+12,domain_shift,"The senator received criticism after the debate.",negative,"Tests sentiment detection in political/news writing"
+
+13,length_extreme,"Works perfectly.",positive,"Tests extremely short positive text"
+14,length_extreme,"Absolutely awful.",negative,"Tests extremely short negative text"
+15,length_extreme,"After using the application for several weeks across different devices and testing nearly every feature available, I noticed repeated crashes, delayed notifications, battery drain, login failures, and inconsistent performance that made the experience extremely frustrating overall.",negative,"Tests whether very long sentences reduce prediction reliability"
+
+16,sarcasm,"Amazing, the app crashed again.",negative,"Tests whether sarcastic praise is mistaken for positive sentiment"
+17,sarcasm,"Fantastic update — now nothing works.",negative,"Checks whether sarcasm fools the classifier"
+18,sarcasm,"Great job deleting all my settings.",negative,"Tests surface positivity versus intended negativity"
+
+19,other,"Th1s app is amazzzing!!!",positive,"Tests robustness to spelling distortions"
+20,other,"Worst. Update. Ever.",negative,"Tests punctuation-heavy sentiment"
+21,other,"meh",neutral,"Tests handling of low-information ambiguous sentiment"
+
+22,negation,"This version does not feel stable anymore.",negative,"Tests whether the model catches negation with positive stability language"
+23,lexical_trigger,"Reliable until the latest update ruined everything.",negative,"Tests conflicting reliability cues"
+24,domain_shift,"The movie received outstanding reviews from critics.",positive,"Tests domain transfer to entertainment language"
+
+25,length_extreme,"Bad app.",negative,"Tests extremely short sentiment expression"
+26,sarcasm,"Lovely, another bug appeared today.",negative,"Tests sarcastic positivity with negative intent"
+27,other,"goooood apppp",positive,"Tests repeated-character spelling variation"
+
+28,domain_shift,"Heavy rain destroyed the crops this season.",negative,"Tests sentiment understanding in environmental/news text"
+29,length_extreme,"This app.",neutral,"Tests extremely short neutral phrase"
+30,sarcasm,"Wonderful performance — it froze during my presentation.",negative,"Tests sarcastic praise in a failure scenario"
